@@ -9,50 +9,18 @@
 # 1 private route table
 # 2 IAM roles (for administrators and developers)
 
-AWSTemplateFormatVersion: 2010-09-09
-
-Description: This is my first bucket
-
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Core template. Contains network and iam roles
 Parameters:
   VpcCidr:
-    type: String
-    AllowedPattern: ((\d{1,3})\.){3}\d{1,3}
-  PublicSubnetCidr1:
     Type: String
-    AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
-  PublicSubnetCidr2:
-    Type: String
-    AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
-  PublicSubnetCidr3:
-    Type: String
-    AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
-  DatabaseSubnetCidr1:
-    Type: String
-    AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
-  DatabaseSubnetCidr2:
-
-    Type: String
-
-    AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
-
-  DatabaseSubnetCidr3:
-
-    Type: String
-
-    AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
-
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
   Environment:
-
     Type: String
-
     AllowedValues: ['prod', 'test']
-  
-  ImageId:
-    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
-    Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
 
 Conditions:
-  IsProd: !Equals [!Ref Environment, 'prod']
+  ProdEnv: !Equals [ !Ref Environment, "prod" ]
 
 Resources:
   Vpc:
@@ -70,7 +38,7 @@ Resources:
   PublicSubnet1:
     Type: "AWS::EC2::Subnet"
     Properties:
-      CidrBlock: !Select [ 0, !Cidr [ !Ref VpcCidr, 12, 8 ] ]
+      CidrBlock: !Select [ 0, !Cidr [!Ref VpcCidr, 12, 8 ] ]
       VpcId: !Ref Vpc
       MapPublicIpOnLaunch: True
       AvailabilityZone: !Select
@@ -251,13 +219,13 @@ Resources:
 #NAT
 
   NatEip:
-    Type: "AWS::EC2:EIP"
+    Type: "AWS::EC2::EIP"
 
-  NatGateway:
+  NatGw:
     Type: "AWS::EC2::NatGateway"
     Properties:
       AllocationId: !GetAtt NatEip.AllocationId
-      Subnet: !Ref PublicSubnet1
+      SubnetId: !Ref PublicSubnet1
 
 
 #Public Route Table & Route
@@ -287,11 +255,11 @@ Resources:
       DestinationCidrBlock: 0.0.0.0/0
       NatGatewayId: !Ref NatGw
 #Subnet RT assoc.(12)
-PubSubRtAttachment1:
-    Type: "AWS::EC2::SubnetRouteTableAssociation"
-    Properties:
-      RouteTableId: !Ref PublicRouteTable
-      SubnetId: !Ref PublicSubnet1
+  PubSubRtAttachment1:
+      Type: "AWS::EC2::SubnetRouteTableAssociation"
+      Properties:
+        RouteTableId: !Ref PublicRouteTable
+        SubnetId: !Ref PublicSubnet1
 
   PubSubRtAttachment2:
     Type: "AWS::EC2::SubnetRouteTableAssociation"
@@ -368,46 +336,6 @@ PubSubRtAttachment1:
         - !Ref DatabaseSubnet1
         - !Ref DatabaseSubnet2
         - !Ref DatabaseSubnet3
-#IAM Roles
-
-  AdminRole:
-    Type: "AWS::IAM::Role"
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          -  Effect: Allow
-             Action:
-               - sts:AssumeRole
-             Principal:
-               AWS: !Join [":", [ "arn:aws:iam:", !Ref "AWS::AccountId", "user/Admin" ] ]
-      ManagedPolicyArns:
-        - "arn:aws:iam::aws:policy/AdministratorAccess"
-      Tags:
-        - Key: 'Name'
-          Value: !Join ['-', [ !Ref 'Environment', 'admin-role' ]]
-        - Key: 'Env'
-          Value: !Ref 'Environment'
-
-  DevRole:
-    Type: "AWS::IAM::Role"
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Action:
-                - "sts:AssumeRole"
-            Principal:
-              AWS: !Ref "AWS::AccountId"
-      ManagedPolicyArns:
-        - !If [ ProdEnv, "arn:aws:iam::aws:policy/ReadOnlyAccess", "arn:aws:iam::aws:policy/AdministratorAccess"]
-      Tags:
-        - Key: 'Name'
-          Value: !Join ['-', [ !Ref 'Environment', 'dev-role' ]]
-        - Key: 'Env'
-          Value: !Ref 'Environment'
-
 # Desired ASG size params
 
   WebTierAsgDesSizeParameter:
@@ -416,35 +344,35 @@ PubSubRtAttachment1:
         Type: String
         Value: "1"
 
-    WebTierAsgMinSizeParameter:
-      Type: "AWS::SSM::Parameter"
-      Properties:
-        Type: String
-        Value: "1"
+  WebTierAsgMinSizeParameter:
+    Type: "AWS::SSM::Parameter"
+    Properties:
+      Type: String
+      Value: "1"
 
-    WebTierAsgMaxSizeParameter:
-      Type: "AWS::SSM::Parameter"
-      Properties:
-        Type: String
-        Value: "1"
+  WebTierAsgMaxSizeParameter:
+    Type: "AWS::SSM::Parameter"
+    Properties:
+      Type: String
+      Value: "1"
 
-    MiddlewareAsgDesSizeParameter:
-      Type: "AWS::SSM::Parameter"
-      Properties:
-        Type: String
-        Value: "1"
+  MiddlewareAsgDesSizeParameter:
+    Type: "AWS::SSM::Parameter"
+    Properties:
+      Type: String
+      Value: "1"
 
-    MiddlewareAsgMinSizeParameter:
-      Type: "AWS::SSM::Parameter"
-      Properties:
-        Type: String
-        Value: "1"
+  MiddlewareAsgMinSizeParameter:
+    Type: "AWS::SSM::Parameter"
+    Properties:
+      Type: String
+      Value: "1"
 
-    MiddlewareAsgMaxSizeParameter:
-      Type: "AWS::SSM::Parameter"
-      Properties:
-        Type: String
-        Value: "1"
+  MiddlewareAsgMaxSizeParameter:
+    Type: "AWS::SSM::Parameter"
+    Properties:
+      Type: String
+      Value: "1"
 
 
 Outputs:
